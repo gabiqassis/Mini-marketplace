@@ -1,0 +1,2 @@
+br.com.marketplace.messaging.MessagingAutoConfiguration
+br.com.marketplace.messaging.rabbit.RabbitMessagingAutoConfiguration

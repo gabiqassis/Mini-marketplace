@@ -1,0 +1,54 @@
+server:
+  port: ${SERVER_PORT:8081}
+
+spring:
+  application:
+    name: catalog-service
+  threads:
+    virtual:
+      # NAO: no JDK 21 o cliente Kafka faz "pinning" da virtual thread e trava as carriers (ADR-0014).
+      # Virtual threads so onde e seguro e util: chamadas de I/O (gateway, Lambda) e o poller do SQS.
+      enabled: false
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/marketplace?currentSchema=catalog}
+    username: ${DB_USER:catalog}
+    password: ${DB_PASSWORD:catalog}
+    hikari:
+      maximum-pool-size: 5
+  flyway:
+    schemas: catalog
+    default-schema: catalog
+    # V1 (outbox/inbox) vem da lib messaging-support; negocio comeca em V2
+    locations: classpath:db/messaging,classpath:db/migration
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 200ms          # cache lento nao pode derrubar leitura: falha rapido e cai no banco
+      connect-timeout: 200ms
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:29092}
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      group-id: catalog-service
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      max-poll-records: 50
+      properties:
+        partition.assignment.strategy: org.apache.kafka.clients.consumer.CooperativeStickyAssignor
+    listener:
+      ack-mode: record
+      concurrency: 3
+
+marketplace:
+  cache:
+    item-ttl: PT10M
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics

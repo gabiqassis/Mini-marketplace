@@ -1,0 +1,21 @@
+# Envio de logs/metricas para o Datadog (opcional, depende de conta e internet).
+#   DD_API_KEY=xxxx docker compose -f docker-compose.yml -f docker-compose.datadog.yml up -d
+# O agente le os logs JSON de todos os containers. Como cada linha ja tem correlationId (= orderId
+# no fluxo de compra), no Datadog basta buscar:  @correlationId:<orderId>
+# e aparece a historia do pedido em TODOS os servicos, em ordem.
+services:
+  datadog-agent:
+    image: gcr.io/datadoghq/agent:7
+    environment:
+      DD_API_KEY: ${DD_API_KEY:?defina DD_API_KEY}
+      DD_SITE: ${DD_SITE:-datadoghq.com}
+      DD_ENV: local
+      DD_LOGS_ENABLED: "true"
+      DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL: "true"
+      DD_CONTAINER_EXCLUDE_LOGS: "name:datadog-agent"
+      DD_APM_ENABLED: "true"
+      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro

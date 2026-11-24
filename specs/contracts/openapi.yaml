@@ -1,0 +1,136 @@
+openapi: 3.0.3
+info:
+  title: Mini Marketplace - APIs HTTP
+  version: 3.0.0
+  description: |
+    Erros no formato RFC 7807 (application/problem+json).
+    Cada servico tem sua porta (ver README). Escritas criticas sao idempotentes.
+paths:
+  /orders:
+    post:
+      summary: Comprador faz um pedido (order-service :8080)
+      parameters:
+        - {name: Idempotency-Key, in: header, required: true, schema: {type: string, maxLength: 100}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [buyerId, buyerEmail, shippingAddress, items]
+              properties:
+                buyerId: {type: string}
+                buyerEmail: {type: string, format: email}
+                shippingAddress:
+                  type: object
+                  required: [zipCode, street, number, city, state]
+                  properties:
+                    zipCode: {type: string, pattern: '^\d{5}-?\d{3}$'}
+                    street: {type: string}
+                    number: {type: string}
+                    city: {type: string}
+                    state: {type: string, pattern: '^[A-Z]{2}$'}
+                items:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [sku, quantity]
+                    properties:
+                      sku: {type: string}
+                      quantity: {type: integer, minimum: 1, maximum: 100}
+      responses:
+        '201': {description: Pedido criado (SAGA iniciada)}
+        '200': {description: Mesma Idempotency-Key e mesmo corpo - devolve o pedido original}
+        '400': {description: Entrada invalida (CEP, e-mail, header ausente)}
+        '422': {description: Produto desconhecido ou Idempotency-Key reutilizada com outro corpo}
+        '429': {description: Rate limit por comprador}
+  /orders/{id}:
+    get:
+      summary: Pedido com status e partes por vendedor (nota, rastreio, problema)
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: ok}, '404': {description: nao existe}}
+  /sellers/{sellerId}/batches:
+    post:
+      summary: Vendedor envia lote pela API (ingestion-service :8086). Alternativa ao SQS seller-batches.
+      parameters: [{name: sellerId, in: path, required: true, schema: {type: string}}]
+      responses:
+        '202': {description: Lote aceito; relatorio item a item}
+        '200': {description: Lote ja recebido (idempotente)}
+        '400': {description: Cabecalho invalido (CNPJ, sellerId, e-mail)}
+  /sellers/{sellerId}/batches/{batchId}:
+    get:
+      summary: Relatorio do lote (aceitos, rejeitados e motivo)
+      parameters:
+        - {name: sellerId, in: path, required: true, schema: {type: string}}
+        - {name: batchId, in: path, required: true, schema: {type: string}}
+      responses: {'200': {description: ok}, '404': {description: nao existe}}
+  /items/{sku}:
+    get:
+      summary: Item do catalogo (catalog-service :8081, cache Redis)
+      parameters: [{name: sku, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: ok}, '404': {description: nao existe}}
+  /stock/{sku}:
+    get:
+      summary: Estoque (inventory-service :8082)
+      parameters: [{name: sku, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: ok}, '404': {description: nao existe}}
+  /payments/by-order/{orderId}:
+    get:
+      summary: Pagamento e ledger do pedido (payment-service :8083)
+      parameters: [{name: orderId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: ok}, '404': {description: nao existe}}
+  /invoices:
+    get:
+      summary: NF-e do pedido (invoice-service :8084)
+      parameters: [{name: orderId, in: query, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: ok}}
+  /shipments/{orderId}:
+    get:
+      summary: Rastreio com linha do tempo (shipping-service :8085, cache Redis)
+      parameters: [{name: orderId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: ok}, '404': {description: sem envio}}
+  /carrier/webhooks:
+    post:
+      summary: Webhook da transportadora (shipping-service :8085)
+      parameters:
+        - {name: X-Carrier-Timestamp, in: header, required: true, schema: {type: string}, description: epoch seconds}
+        - {name: X-Carrier-Signature, in: header, required: true, schema: {type: string}, description: 'hex(HMAC-SHA256(secret, timestamp + "." + corpoBruto))'}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [eventId, trackingCode, status]
+              properties:
+                eventId: {type: string}
+                trackingCode: {type: string}
+                status: {type: string, enum: [PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERY_FAILED, DELIVERED, LOST, RETURNED]}
+                location: {type: string}
+                description: {type: string}
+                occurredAt: {type: string, format: date-time}
+      responses:
+        '202': {description: Aceito (APPLIED, CHECKPOINT ou IGNORED se fora de ordem)}
+        '200': {description: Evento duplicado - pare de reenviar}
+        '401': {description: Assinatura invalida ou timestamp fora da tolerancia}
+        '404': {description: Codigo de rastreio desconhecido}
+  /notifications:
+    get:
+      summary: Notificacoes do pedido (notification-service :8087)
+      parameters: [{name: orderId, in: query, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: ok}}
+  /audit/orders/{orderId}:
+    get:
+      summary: Trilha ponta a ponta do pedido + lado do vendedor por SKU (audit-service :8088)
+      parameters: [{name: orderId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: ok}, '404': {description: sem eventos}}
+  /audit/items/{sku}:
+    get:
+      summary: Historia de um SKU (lotes, catalogo, reservas, vendas)
+      parameters: [{name: sku, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: ok}}
+  /audit/correlations/{correlationId}:
+    get:
+      summary: Todos os fatos de um fluxo (pedido ou lote)
+      parameters: [{name: correlationId, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: ok}}

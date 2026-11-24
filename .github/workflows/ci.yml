@@ -1,0 +1,37 @@
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+      # Enforcer (servico nao depende de servico) + ArchUnit (camadas) + contrato x spec + testes
+      - run: mvn -B verify
+
+  e2e:
+    needs: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/tdd.py build
+      - run: python scripts/tdd.py up
+      - run: python scripts/tdd.py e2e
+      - run: python scripts/tdd.py chaos
+      - if: failure()
+        run: docker compose logs --tail 300

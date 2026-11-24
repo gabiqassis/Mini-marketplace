@@ -1,0 +1,42 @@
+server:
+  port: ${SERVER_PORT:8086}
+
+spring:
+  application:
+    name: ingestion-service
+  threads:
+    virtual:
+      # NAO: no JDK 21 o cliente Kafka faz "pinning" da virtual thread e trava as carriers (ADR-0014).
+      # Virtual threads so onde e seguro e util: chamadas de I/O (gateway, Lambda) e o poller do SQS.
+      enabled: false
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/marketplace?currentSchema=ingestion}
+    username: ${DB_USER:ingestion}
+    password: ${DB_PASSWORD:ingestion}
+    hikari:
+      maximum-pool-size: 5
+  flyway:
+    schemas: ingestion
+    default-schema: ingestion
+    locations: classpath:db/messaging,classpath:db/migration
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:29092}
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+
+marketplace:
+  aws:
+    region: ${AWS_REGION:us-east-1}
+    endpoint: ${AWS_ENDPOINT:http://localhost:9324}
+  sqs:
+    enabled: ${SQS_ENABLED:true}
+    queue: seller-batches
+    dlq: seller-batches-dlq
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics

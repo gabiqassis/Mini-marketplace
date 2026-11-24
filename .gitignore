@@ -1,0 +1,10 @@
+target/
+.idea/
+*.iml
+.vscode/
+.DS_Store
+*.log
+.env
+.venv-e2e/
+__pycache__/
+.pytest_cache/

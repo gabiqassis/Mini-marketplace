@@ -1,0 +1,79 @@
+{
+  "users": [
+    {
+      "name": "marketplace",
+      "password_hash": "ryVO7kSk7etklE42LU1ZrlCeBHsVMBIZt2l3Wd6dfqE2UHJR",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": ["administrator"]
+    }
+  ],
+  "vhosts": [{"name": "/"}],
+  "permissions": [
+    {"user": "marketplace", "vhost": "/", "configure": ".*", "write": ".*", "read": ".*"}
+  ],
+  "exchanges": [
+    {"name": "marketplace.commands", "vhost": "/", "type": "direct", "durable": true, "auto_delete": false, "internal": false, "arguments": {}},
+    {"name": "marketplace.retry", "vhost": "/", "type": "direct", "durable": true, "auto_delete": false, "internal": false, "arguments": {}},
+    {"name": "marketplace.parking", "vhost": "/", "type": "direct", "durable": true, "auto_delete": false, "internal": false, "arguments": {}}
+  ],
+  "queues": [
+    {
+      "name": "invoice.issue", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 10,
+        "x-dead-letter-exchange": "marketplace.parking",
+        "x-dead-letter-routing-key": "invoice.issue.parking",
+        "x-dead-letter-strategy": "at-least-once",
+        "x-overflow": "reject-publish"
+      }
+    },
+    {
+      "name": "invoice.issue.retry", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "marketplace.commands",
+        "x-dead-letter-routing-key": "invoice.issue",
+        "x-dead-letter-strategy": "at-least-once",
+        "x-overflow": "reject-publish"
+      }
+    },
+    {
+      "name": "invoice.issue.parking", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": {"x-queue-type": "quorum"}
+    },
+    {
+      "name": "notification.send", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 10,
+        "x-dead-letter-exchange": "marketplace.parking",
+        "x-dead-letter-routing-key": "notification.send.parking",
+        "x-dead-letter-strategy": "at-least-once",
+        "x-overflow": "reject-publish"
+      }
+    },
+    {
+      "name": "notification.send.retry", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "marketplace.commands",
+        "x-dead-letter-routing-key": "notification.send",
+        "x-dead-letter-strategy": "at-least-once",
+        "x-overflow": "reject-publish"
+      }
+    },
+    {
+      "name": "notification.send.parking", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": {"x-queue-type": "quorum"}
+    }
+  ],
+  "bindings": [
+    {"source": "marketplace.commands", "vhost": "/", "destination": "invoice.issue", "destination_type": "queue", "routing_key": "invoice.issue", "arguments": {}},
+    {"source": "marketplace.retry", "vhost": "/", "destination": "invoice.issue.retry", "destination_type": "queue", "routing_key": "invoice.issue.retry", "arguments": {}},
+    {"source": "marketplace.parking", "vhost": "/", "destination": "invoice.issue.parking", "destination_type": "queue", "routing_key": "invoice.issue.parking", "arguments": {}},
+    {"source": "marketplace.commands", "vhost": "/", "destination": "notification.send", "destination_type": "queue", "routing_key": "notification.send", "arguments": {}},
+    {"source": "marketplace.retry", "vhost": "/", "destination": "notification.send.retry", "destination_type": "queue", "routing_key": "notification.send.retry", "arguments": {}},
+    {"source": "marketplace.parking", "vhost": "/", "destination": "notification.send.parking", "destination_type": "queue", "routing_key": "notification.send.parking", "arguments": {}}
+  ]
+}

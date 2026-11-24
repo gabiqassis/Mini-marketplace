@@ -1,0 +1,69 @@
+server:
+  port: ${SERVER_PORT:8084}
+  shutdown: graceful
+
+spring:
+  application:
+    name: invoice-service
+  lifecycle:
+    timeout-per-shutdown-phase: 20s   # fecha antes do grace period do container (evita rebalance longo)
+  threads:
+    virtual:
+      # NAO: no JDK 21 o cliente Kafka faz "pinning" da virtual thread e trava as carriers (ADR-0014).
+      # Virtual threads so onde e seguro e util: chamadas de I/O (gateway, Lambda) e o poller do SQS.
+      enabled: false
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/marketplace?currentSchema=invoicing}
+    username: ${DB_USER:invoicing}
+    password: ${DB_PASSWORD:invoicing}
+    hikari:
+      maximum-pool-size: 8
+  flyway:
+    schemas: invoicing
+    default-schema: invoicing
+    locations: classpath:db/messaging,classpath:db/migration
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER:marketplace}
+    password: ${RABBIT_PASSWORD:marketplace}
+    publisher-confirm-type: simple    # outbox so marca como publicado depois do confirm do broker
+    listener:
+      simple:
+        acknowledge-mode: auto
+        prefetch: 10
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:29092}
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      group-id: invoice-service
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      max-poll-records: 50
+      properties:
+        partition.assignment.strategy: org.apache.kafka.clients.consumer.CooperativeStickyAssignor
+        metadata.max.age.ms: 10000
+    listener:
+      ack-mode: record
+      concurrency: 3
+
+marketplace:
+  aws:
+    region: ${AWS_REGION:us-east-1}
+  invoice:
+    issuer: ${INVOICE_ISSUER:lambda}          # lambda | inprocess
+    blocked-cnpjs: ${SEFAZ_BLOCKED_CNPJS:}     # usado so no modo inprocess
+    lambda:
+      endpoint: ${NFE_LAMBDA_ENDPOINT:http://localhost:9001}
+      function: ${NFE_LAMBDA_FUNCTION:function}
+      timeout: PT10S
+      max-concurrent: ${NFE_LAMBDA_MAX_CONCURRENT:10}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics

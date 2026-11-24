@@ -1,0 +1,51 @@
+server:
+  port: ${SERVER_PORT:8082}
+  shutdown: graceful
+
+spring:
+  application:
+    name: inventory-service
+  lifecycle:
+    timeout-per-shutdown-phase: 20s   # fecha antes do grace period do container (evita rebalance longo)
+  threads:
+    virtual:
+      # NAO: no JDK 21 o cliente Kafka faz "pinning" da virtual thread e trava as carriers (ADR-0014).
+      # Virtual threads so onde e seguro e util: chamadas de I/O (gateway, Lambda) e o poller do SQS.
+      enabled: false
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/marketplace?currentSchema=inventory}
+    username: ${DB_USER:inventory}
+    password: ${DB_PASSWORD:inventory}
+    hikari:
+      maximum-pool-size: 8
+  flyway:
+    schemas: inventory
+    default-schema: inventory
+    locations: classpath:db/messaging,classpath:db/migration
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:29092}
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      group-id: inventory-service
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      max-poll-records: 50
+      properties:
+        partition.assignment.strategy: org.apache.kafka.clients.consumer.CooperativeStickyAssignor
+        metadata.max.age.ms: 10000
+    listener:
+      ack-mode: record
+      concurrency: 3
+
+marketplace:
+  outbox:
+    poll-ms: 200
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
