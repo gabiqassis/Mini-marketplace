@@ -1,6 +1,6 @@
 # Mini Marketplace - ambiente local completo (perfil A).
-#   python scripts/tdd.py all     -> compila, testa, sobe tudo e roda o E2E
-#   docker compose up -d --build  -> so sobe (precisa dos jars: python scripts/tdd.py build)
+#   python e2e/tdd.py all     -> compila, testa, sobe tudo e roda o E2E
+#   docker compose up -d --build  -> so sobe (precisa dos jars: python e2e/tdd.py build)
 #
 # AWS simulada com ferramentas compativeis com a API real (o codigo usa o AWS SDK oficial):
 #   SQS    -> ElasticMQ (API SQS)                     endpoint http://elasticmq:9324
@@ -126,7 +126,7 @@ services:
   # ================================ SERVICOS ==================================
   ingestion-service:
     <<: *service
-    build: {context: ./services/ingestion-service, dockerfile: ../../docker/Dockerfile.service}
+    build: ./services/ingestion-service
     depends_on:
       <<: *infra-ready
       elasticmq:
@@ -140,7 +140,7 @@ services:
 
   catalog-service:
     <<: *service
-    build: {context: ./services/catalog-service, dockerfile: ../../docker/Dockerfile.service}
+    build: ./services/catalog-service
     environment:
       <<: *common-env
       SERVER_PORT: 8081
@@ -149,7 +149,7 @@ services:
 
   inventory-service:
     <<: *service
-    build: {context: ./services/inventory-service, dockerfile: ../../docker/Dockerfile.service}
+    build: ./services/inventory-service
     environment:
       <<: *common-env
       SERVER_PORT: 8082
@@ -158,7 +158,7 @@ services:
 
   order-service:
     <<: *service
-    build: {context: ./services/order-service, dockerfile: ../../docker/Dockerfile.service}
+    build: ./services/order-service
     environment:
       <<: *common-env
       SERVER_PORT: 8080
@@ -168,7 +168,7 @@ services:
 
   payment-service:
     <<: *service
-    build: {context: ./services/payment-service, dockerfile: ../../docker/Dockerfile.service}
+    build: ./services/payment-service
     environment:
       <<: *common-env
       SERVER_PORT: 8083
@@ -178,7 +178,7 @@ services:
 
   invoice-service:
     <<: *service
-    build: {context: ./services/invoice-service, dockerfile: ../../docker/Dockerfile.service}
+    build: ./services/invoice-service
     depends_on:
       <<: *infra-ready
       nfe-lambda:
@@ -194,7 +194,7 @@ services:
 
   shipping-service:
     <<: *service
-    build: {context: ./services/shipping-service, dockerfile: ../../docker/Dockerfile.service}
+    build: ./services/shipping-service
     environment:
       <<: *common-env
       SERVER_PORT: 8085
@@ -204,7 +204,7 @@ services:
 
   notification-service:
     <<: *service
-    build: {context: ./services/notification-service, dockerfile: ../../docker/Dockerfile.service}
+    build: ./services/notification-service
     depends_on:
       <<: *infra-ready
       mailpit:
@@ -218,7 +218,7 @@ services:
 
   audit-service:
     <<: *service
-    build: {context: ./services/audit-service, dockerfile: ../../docker/Dockerfile.service}
+    build: ./services/audit-service
     environment:
       <<: *common-env
       SERVER_PORT: 8088

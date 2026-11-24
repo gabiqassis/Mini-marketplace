@@ -1,0 +1,16 @@
+# Empacota o jar gerado por `mvn package` (build rapido, camadas simples).
+FROM eclipse-temurin:21-jre-alpine
+
+# nao roda como root
+RUN addgroup -S app && adduser -S -G app -u 1001 app
+WORKDIR /app
+COPY target/*-SNAPSHOT.jar app.jar
+USER app
+
+# Heap proporcional ao limite do container; SerialGC + C1 = menos memoria e boot rapido.
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=70 -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -Xss512k"
+
+HEALTHCHECK --interval=5s --timeout=3s --start-period=60s --retries=30 \
+  CMD wget -qO- http://localhost:${SERVER_PORT}/actuator/health | grep -q '"status":"UP"' || exit 1
+
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

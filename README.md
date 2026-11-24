@@ -7,7 +7,7 @@ assinado**, vendedor e comprador recebem **e-mails**, e um servico de **auditori
 ponta a ponta. Kafka, RabbitMQ, Redis e PostgreSQL, cada um no papel em que e melhor.
 
 > **Perfil de execucao: A (Docker).** Tudo sobe com um comando e foi testado ponta a ponta
-> (`python scripts/tdd.py all --chaos`): **284 testes unitarios + 27 testes E2E** (23 de fluxo e 4 de caos).
+> (`python e2e/tdd.py all --chaos`): **284 testes unitarios + 27 testes E2E** (23 de fluxo e 4 de caos).
 
 ---
 
@@ -17,10 +17,10 @@ Requisitos: **Docker** (Docker Desktop no Windows) e **Python 3.10+**. Java 21/M
 (sem eles o build roda dentro de um container).
 
 ```bash
-python scripts/tdd.py all            # testes unitarios -> build -> sobe tudo -> testes E2E
-python scripts/tdd.py all --chaos    # idem + derruba servicos para provar a resiliencia
-python scripts/tdd.py status         # saude dos 9 servicos
-python scripts/tdd.py down           # para (python scripts/tdd.py clean apaga o banco)
+python e2e/tdd.py all            # testes unitarios -> build -> sobe tudo -> testes E2E
+python e2e/tdd.py all --chaos    # idem + derruba servicos para provar a resiliencia
+python e2e/tdd.py status         # saude dos 9 servicos
+python e2e/tdd.py down           # para (python e2e/tdd.py clean apaga o banco)
 ```
 
 | O que | Onde |
@@ -68,8 +68,29 @@ flowchart TB
 | notification | 8087 | E-mail para vendedor e comprador, sem duplicar | Kafka, RabbitMQ, Redis, SMTP |
 | audit | 8088 | Trilha imutavel de todos os fatos; linha do tempo ponta a ponta | Kafka |
 
-Dentro de cada servico: **Clean Architecture** `api -> application -> domain <- infra`, travada por
-ArchUnit (12 regras por servico) e Maven Enforcer. Detalhes e diagramas: `docs/adr/` e `specs/`.
+Cada servico e uma **unidade independente** (proprio `pom.xml`, `Dockerfile`, schema e usuario no
+banco, migrations Flyway) e segue **arquitetura hexagonal / Clean Architecture**, travada por ArchUnit
+(12 regras por servico) e Maven Enforcer (servico nao depende de servico). Decisoes: `docs/adr/`;
+contratos de eventos e REST: `docs/contracts/`.
+
+```
+services/order-service/
+  Dockerfile  pom.xml
+  src/main/resources/            application.yml, db/migration/ (Flyway)
+  src/main/java/br/com/marketplace/order/
+    domain/                      entidades, value objects, regras de negocio (Java puro)
+    application/
+      port/in/                   casos de uso expostos (PlaceOrderUseCase, ...)
+      port/out/                  o que o caso de uso precisa (OrderRepository, RateLimiter, ...)
+      service/                   implementacao dos casos de uso
+    adapter/
+      in/web/                    controllers REST e DTOs
+      in/messaging/              listeners Kafka / RabbitMQ / SQS
+      in/scheduler/              jobs agendados
+      out/persistence/           repositorios JDBC (SQL fica so aqui)
+      out/cache/                 Redis
+    config/                      beans e configuracao Spring
+```
 
 ### Papel de cada tecnologia (ADR-0010)
 
@@ -131,27 +152,26 @@ Todo envelope carrega `correlationId` (orderId na compra, batchId no vendedor) e
 
 | Nivel | Quantidade | O que garante | Comando |
 |---|---|---|---|
-| Unitario (dominio e casos de uso) | 284 | regras puras, idempotencia, politicas de retry, assinatura | `python scripts/tdd.py unit` |
-| Arquitetura | 12 regras x 9 servicos | camadas, SQL/Kafka/Rabbit/AWS so em infra | (junto do unit) |
+| Unitario (dominio e casos de uso) | 284 | regras puras, idempotencia, politicas de retry, assinatura | `python e2e/tdd.py unit` |
+| Arquitetura | 12 regras x 9 servicos | hexagonal: dominio puro, adaptadores so chamam portas, SQL/Kafka/Rabbit/AWS so em adapter | (junto do unit) |
 | Contrato x spec (SDD) | 4 | topicos = AsyncAPI = script de criacao = filas | (junto do unit) |
-| E2E | 23 | fluxos reais via SQS, HTTP, webhooks, e-mail, auditoria | `python scripts/tdd.py e2e` |
-| Caos | 4 | servico/Redis/Lambda fora e o resto continua | `python scripts/tdd.py chaos` |
+| E2E | 23 | fluxos reais via SQS, HTTP, webhooks, e-mail, auditoria | `python e2e/tdd.py e2e` |
+| Caos | 4 | servico/Redis/Lambda fora e o resto continua | `python e2e/tdd.py chaos` |
 
 ---
 
-## Estrutura
+## Estrutura do repositorio
 
 ```
+services/*                  9 microsservicos (hexagonal), cada um com pom, Dockerfile e migrations
 libs/event-contracts        envelope, topicos, filas, payloads (sem logica)
 libs/messaging-support      outbox (Kafka+Rabbit), inbox, relay, DLT com jitter, retry/parking, LogContext
 libs/architecture-rules     regras ArchUnit compartilhadas
 lambdas/nfe-emitter-lambda  Lambda Java (CNPJ, chave de acesso mod 11, rejeicoes SEFAZ)
-services/*                  9 servicos (api / application / domain / infra)
 infra/                      postgres (schemas), kafka (topicos), rabbitmq (filas), elasticmq (SQS)
-e2e/                        suite pytest (vendedor, comprador, transportadora, auditoria, caos)
-scripts/tdd.py              orquestrador (Windows/Linux/macOS)
-docs/adr/                   16 decisoes de arquitetura
-specs/                      SDD: constituicao, specs por contexto, AsyncAPI, filas, OpenAPI
+e2e/                        suite pytest (vendedor, comprador, transportadora, auditoria, caos) e runner tdd.py
+docs/adr/                   decisoes de arquitetura
+docs/contracts/             AsyncAPI, OpenAPI e filas RabbitMQ
 ```
 
 ## Limites conhecidos e evolucao

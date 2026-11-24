@@ -3,8 +3,8 @@ package br.com.marketplace.contracts;
 import java.util.List;
 
 /**
- * Topicos Kafka (FATOS e passos da SAGA). A fonte da verdade e specs/contracts/asyncapi.yaml;
- * TopicsMatchSpecTest quebra o build se esta classe e a spec divergirem (SDD).
+ * Topicos Kafka (FATOS e passos da SAGA). A fonte da verdade e docs/contracts/asyncapi.yaml;
+ * TopicsMatchContractsTest quebra o build se esta classe e o contrato divergirem.
  * Convencao: contexto.fato.vN. Cada topico tem um irmao .DLT.
  */
 public final class Topics {

@@ -13,7 +13,7 @@ jobs:
           distribution: temurin
           java-version: 21
           cache: maven
-      # Enforcer (servico nao depende de servico) + ArchUnit (camadas) + contrato x spec + testes
+      # Enforcer (servico nao depende de servico) + ArchUnit (hexagonal) + contratos + testes
       - run: mvn -B verify
 
   e2e:
@@ -29,9 +29,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python scripts/tdd.py build
-      - run: python scripts/tdd.py up
-      - run: python scripts/tdd.py e2e
-      - run: python scripts/tdd.py chaos
+      - run: python e2e/tdd.py build
+      - run: python e2e/tdd.py up
+      - run: python e2e/tdd.py e2e
+      - run: python e2e/tdd.py chaos
       - if: failure()
         run: docker compose logs --tail 300

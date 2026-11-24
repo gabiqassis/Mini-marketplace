@@ -1,0 +1,113 @@
+asyncapi: 2.6.0
+info:
+  title: Mini Marketplace - Contratos de eventos (Kafka)
+  version: 3.0.0
+  description: |
+    FONTE DA VERDADE dos eventos (SDD). Mudou um evento? Mude AQUI primeiro, depois o codigo.
+    TopicsMatchSpecTest garante que os canais abaixo sao exatamente os topicos de Topics.java.
+
+    Envelope de toda mensagem:
+      {messageId, type, occurredAt, correlationId, causationId, producer, payload}
+    - correlationId: orderId no fluxo de compra; batchId no fluxo do vendedor.
+    - Entrega at-least-once: consumidores DEVEM ser idempotentes (inbox por messageId).
+    - Leitores tolerantes: campos desconhecidos sao ignorados. Mudanca incompativel = novo topico .v2.
+    - Todo topico X tem X.DLT (mensagens que falharam 5 vezes ou sao invalidas).
+
+    Comandos RabbitMQ (fora do Kafka) estao documentados em docs/contracts/rabbitmq.md.
+servers:
+  local:
+    url: kafka:9092
+    protocol: kafka
+channels:
+  seller.profile-updated.v1:
+    description: Dados cadastrais/fiscais do vendedor (CNPJ, e-mail). Chave = sellerId.
+    subscribe:
+      message: {name: SellerProfileUpdated}
+  seller.item-published.v1:
+    description: Item do lote do vendedor validado pelo ingestion. Chave = sku.
+    subscribe:
+      message: {name: SellerItemPublished}
+  catalog.item-upserted.v1:
+    description: Catalogo aceitou o item (sequence maior que a gravada). Chave = sku.
+    subscribe:
+      message: {name: CatalogItemUpserted}
+  inventory.reserve-requested.v1:
+    description: SAGA - pedidos pede reserva de estoque (tudo ou nada). Chave = orderId.
+    subscribe:
+      message: {name: ReserveStockRequested}
+  inventory.commit-requested.v1:
+    description: SAGA - pagamento autorizado, baixa definitiva do estoque. Chave = orderId.
+    subscribe:
+      message: {name: CommitStockRequested}
+  inventory.release-requested.v1:
+    description: SAGA (compensacao) - liberar reserva. Chave = orderId.
+    subscribe:
+      message: {name: ReleaseStockRequested}
+  inventory.restock-requested.v1:
+    description: Devolucao chegou ao vendedor - repor estoque. Chave = orderId.
+    subscribe:
+      message: {name: RestockRequested}
+  inventory.stock-reserved.v1:
+    description: Reserva feita. Chave = orderId.
+    subscribe:
+      message: {name: StockReserved}
+  inventory.reservation-rejected.v1:
+    description: Reserva recusada (sem estoque, sku desconhecido). Chave = orderId.
+    subscribe:
+      message: {name: StockReservationRejected}
+  inventory.stock-released.v1:
+    description: Reserva liberada (compensacao concluida). Chave = orderId.
+    subscribe:
+      message: {name: StockReleased}
+  inventory.stock-restocked.v1:
+    description: Estoque reposto apos devolucao. Chave = orderId.
+    subscribe:
+      message: {name: StockRestocked}
+  payment.authorize-requested.v1:
+    description: SAGA - autorizar o valor (sem capturar). Chave = orderId.
+    subscribe:
+      message: {name: AuthorizePaymentRequested}
+  payment.capture-requested.v1:
+    description: Todas as notas emitidas - capturar. Chave = orderId.
+    subscribe:
+      message: {name: CapturePaymentRequested}
+  payment.refund-requested.v1:
+    description: Estorno total/parcial (ou cancelamento da autorizacao). Chave = orderId.
+    subscribe:
+      message: {name: RefundPaymentRequested}
+  payment.authorized.v1:
+    description: Valor autorizado. Chave = orderId.
+    subscribe:
+      message: {name: PaymentAuthorized}
+  payment.declined.v1:
+    description: Pagamento recusado. Chave = orderId.
+    subscribe:
+      message: {name: PaymentDeclined}
+  payment.captured.v1:
+    description: Valor capturado. Chave = orderId.
+    subscribe:
+      message: {name: PaymentCaptured}
+  payment.refunded.v1:
+    description: Estorno (REFUND) ou cancelamento de autorizacao (VOID) feito. Chave = orderId.
+    subscribe:
+      message: {name: PaymentRefunded}
+  order.confirmed.v1:
+    description: Pedido confirmado (estoque baixado e pagamento autorizado), com partes por vendedor. Chave = orderId.
+    subscribe:
+      message: {name: OrderConfirmed}
+  order.status-changed.v1:
+    description: Qualquer mudanca de status do pedido. Chave = orderId.
+    subscribe:
+      message: {name: OrderStatusChanged}
+  invoice.issued.v1:
+    description: NF-e autorizada para a parte de um vendedor. Chave = orderId.
+    subscribe:
+      message: {name: InvoiceIssued}
+  invoice.rejected.v1:
+    description: NF-e rejeitada (fiscal) ou tentativas esgotadas (tecnico). Chave = orderId.
+    subscribe:
+      message: {name: InvoiceRejected}
+  shipping.status-changed.v1:
+    description: Envio mudou de status (criado, coletado, em transito, entregue, extraviado, devolvido). Chave = orderId.
+    subscribe:
+      message: {name: ShipmentStatusChanged}

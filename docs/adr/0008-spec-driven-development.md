@@ -6,14 +6,14 @@
 Com vários serviços conversando por eventos, o maior risco é o contrato divergir entre quem manda e quem recebe sem ninguém perceber.
 
 ## Decisão
-A pasta [`specs/`](../../specs) é a **fonte da verdade**; o código a implementa:
+O contrato é escrito **antes** do código e fica em [`docs/contracts/`](../contracts):
 
-1. [`constitution.md`](../../specs/constitution.md): princípios inegociáveis (as travas).
-2. `specs/00N-*/spec.md`: por feature — requisitos numerados (`RF-`), cenários de aceite *Dado/Quando/Então* e rastreabilidade para código e teste.
-3. `specs/contracts/`: **AsyncAPI** (eventos) e **OpenAPI** (REST).
-4. Regra de mudança: alterou comportamento ou contrato? **Mude a spec primeiro**, depois o código e o teste.
+1. [`asyncapi.yaml`](../contracts/asyncapi.yaml): eventos Kafka (tópicos, payloads, produtores e consumidores).
+2. [`rabbitmq.md`](../contracts/rabbitmq.md): comandos e filas (retry, parking).
+3. [`openapi.yaml`](../contracts/openapi.yaml): REST de cada serviço.
+4. Regra de mudança: alterou comportamento ou contrato? **Mude o contrato primeiro**, depois o teste e o código.
 
-Para a spec não virar documento esquecido, há um teste que a cobra: `TopicsMatchSpecTest` quebra o build se os tópicos do código divergirem do AsyncAPI ou do script que cria os tópicos.
+Para o contrato não virar documento esquecido, há um teste que o cobra: `TopicsMatchContractsTest` quebra o build se os tópicos do código divergirem do AsyncAPI, do script que cria os tópicos ou das filas do RabbitMQ.
 
 ## Alternativas consideradas
 - **Code-first (contrato gerado do código):** o contrato passa a ser consequência, e mudança acidental vira "contrato novo".
